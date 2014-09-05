@@ -313,44 +313,45 @@ int main(int argc, char **argv)
     	ros::spinOnce();
 		rate.sleep();
 
-    	if (pose_xy::getLinearDistance(goal.pose.p, robot.pose.p) < 0.1)
+    	if (pose_xy::getLinearDistance(goal.base.p, robot.base.p) < 0.1)
     	{
     		ROS_INFO("GOAL REACHED!");
+    		printf("goal->  x: %1.2f \t y: %1.2f\n robot-> x: %1.2f \t y: %1.2f\n", goal.base.p.x, goal.base.p.y, robot.base.p.x, robot.base.p.y);
         	robot.move(0, 0);
 
     		return EXIT_SUCCESS;
 		}
 		else
 		{
-	        if(robot.laser.obstacle_in_path(goal.pose.p, robot.pose.p))
+	        if(robot.laser.obstacle_in_path(goal.base.p, robot.base.p))
 	        {
-	        	Oi = robot.laser.findClosestTangentPoint(goal.pose.p, robot.pose.p);
+	        	Oi = robot.laser.findClosestTangentPoint(goal.base.p, robot.base.p);
 	        }
 
-	        dist = pose_xy::getLinearDistance(goal.pose.p, Oi) + pose_xy::getLinearDistance(Oi, robot.pose.p);
+	        dist = pose_xy::getLinearDistance(goal.base.p, Oi) + pose_xy::getLinearDistance(Oi, robot.base.p);
 	        
 	        //boundary following behavior!
 	        if(dist > last_dist)
 	    	{
-	    		dReached = pose_xy::getLinearDistance(goal.pose.p, robot.pose.p);
-	    		dFollowp = robot.laser.findClosestTangentPoint(goal.pose.p, robot.pose.p);
-	    		dFollow = pose_xy::getLinearDistance(dFollowp, goal.pose.p);
+	    		dReached = pose_xy::getLinearDistance(goal.base.p, robot.base.p);
+	    		dFollowp = robot.laser.findClosestTangentPoint(goal.base.p, robot.base.p);
+	    		dFollow = pose_xy::getLinearDistance(dFollowp, goal.base.p);
 	    		while(dReached >= dFollow)
 	    		{
 	    			ros::spinOnce();
 	    			rate.sleep();
 
-	    			goalRobotV = Controller::getRobotGoalVector(dFollow, robot.pose.p);
+	    			goalRobotV = Controller::getRobotGoalVector(dFollow, robot.base.p);
 	        		robot.move(goalRobotV.x, goalRobotV.y);
 	    		}
 	    	}
 	        else
 	        {
-	        	goalRobotV = Controller::getRobotGoalVector(goal.pose.p, robot.pose.p);
+	        	goalRobotV = Controller::getRobotGoalVector(goal.base.p, robot.base.p);
 	        	robot.move(goalRobotV.x, goalRobotV.y);
 	        }
 	        ros::spinOnce();
-    	    dist = pose_xy::getLinearDistance(goal.pose.p, Oi) + pose_xy::getLinearDistance(Oi, robot.pose.p);
+    	    dist = pose_xy::getLinearDistance(goal.base.p, Oi) + pose_xy::getLinearDistance(Oi, robot.base.p);
 	        last_dist = dist;
 	    }
     } 
