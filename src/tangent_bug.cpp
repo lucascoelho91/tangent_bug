@@ -32,7 +32,7 @@ class pose_xy{
 	    }
 };
 
-class Base { 
+class Base : public pose_xy{ 
 public: 
     pose_xy p; 
 
@@ -40,31 +40,32 @@ public:
 
     void baseCallback(const nav_msgs::Odometry::ConstPtr& msg) { 
         double roll, pitch; 
-        p.x = (-1)* msg->pose.pose.position.y; 
-        p.y = msg->pose.pose.position.x; 
+        x = (-1)* msg->pose.pose.position.y; 
+        y = msg->pose.pose.position.x; 
+        printf("Getting base!!!! %f %f\n", x, y);
         tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
                                           msg->pose.pose.orientation.y, \
                                           msg->pose.pose.orientation.z, \
                                           msg->pose.pose.orientation.w); 
-        tf::Matrix3x3(q).getRPY(roll, pitch, p.heading); 
+        tf::Matrix3x3(q).getRPY(roll, pitch, heading); 
     } 
 }; 
 
-class Pose { 
+class Pose : public pose_xy{ 
 public: 
-    pose_xy p;
 
     Pose() {} 
     void poseCallback(const nav_msgs::Odometry::ConstPtr& msg) { 
         double roll, pitch; 
-        p.x = msg->pose.pose.position.x; 
-        p.y = msg->pose.pose.position.y; 
+        x = msg->pose.pose.position.x; 
+        y = msg->pose.pose.position.y;
+        printf("Getting pose!!!! %f %f\n", x, y); 
 
         tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
                                           msg->pose.pose.orientation.y, \
                                           msg->pose.pose.orientation.z, \
                                           msg->pose.pose.orientation.w); 
-        tf::Matrix3x3(q).getRPY(roll, pitch, p.heading); 
+        tf::Matrix3x3(q).getRPY(roll, pitch, heading); 
     } 
 }; 
 
@@ -232,8 +233,8 @@ public:
 
         double v, w;
 
-        v = kv*( cos(base.p.heading)*xvel + sin(base.p.heading)*yvel );
-        w = kw*( -sin(base.p.heading)*yvel/d + cos(base.p.heading)*yvel/d );
+        v = kv*( cos(base.heading)*xvel + sin(base.heading)*yvel );
+        w = kw*( -sin(base.heading)*yvel/d + cos(base.heading)*yvel/d );
                 
 
         msg.linear.x = v; 
@@ -264,15 +265,15 @@ public:
 
     double getAngularDistance(StageBot& robot, StageBot& goal) 
     { 
-        return atan2(goal.pose.p.y - robot.pose.p.y, \
-                     goal.pose.p.x - robot.pose.p.x) \
-                   -robot.pose.p.heading; 
+        return atan2(goal.pose.y - robot.pose.y, \
+                     goal.pose.x - robot.pose.x) \
+                   -robot.pose.heading; 
     } 
 
     double getLinearDistance(StageBot& robot, StageBot& goal) 
     { 
-        return sqrt(pow(goal.pose.p.x - robot.pose.p.x, 2) \
-                    + pow(goal.pose.p.y - robot.pose.p.y, 2)); 
+        return sqrt(pow(goal.pose.x - robot.pose.x, 2) \
+                    + pow(goal.pose.y - robot.pose.y, 2)); 
     }
 
     double getLinearDistance(pose_xy p1, pose_xy p2) 
@@ -295,7 +296,7 @@ int main(int argc, char **argv)
 { 
     ros::init(argc, argv, "controller"); 
     ros::NodeHandle n("controller"); 
-    StageBot robot(n, 0, 1, 1, 0.05); 
+    StageBot robot(n, 0, 0.1, 1000, 0.05); 
     StageBot goal(n, 1); 
     Controller controller; 
 
@@ -309,49 +310,51 @@ int main(int argc, char **argv)
 
     ros::Rate rate(20); 
 
+    ros::Duration(0.5).sleep();
+
     while (ros::ok()) { 
     	ros::spinOnce();
 		rate.sleep();
 
-    	if (pose_xy::getLinearDistance(goal.base.p, robot.base.p) < 0.1)
+    	if (pose_xy::getLinearDistance(goal.base, robot.base) < 0.1)
     	{
     		ROS_INFO("GOAL REACHED!");
-    		printf("goal->  x: %1.2f \t y: %1.2f\n robot-> x: %1.2f \t y: %1.2f\n", goal.base.p.x, goal.base.p.y, robot.base.p.x, robot.base.p.y);
+    		printf("goal->  x: %1.2f \t y: %1.2f\n robot-> x: %1.2f \t y: %1.2f\n", goal.base.x, goal.base.y, robot.base.x, robot.base.y);
         	robot.move(0, 0);
 
     		return EXIT_SUCCESS;
 		}
 		else
 		{
-	        if(robot.laser.obstacle_in_path(goal.base.p, robot.base.p))
+	        if(robot.laser.obstacle_in_path(goal.base, robot.base))
 	        {
-	        	Oi = robot.laser.findClosestTangentPoint(goal.base.p, robot.base.p);
+	        	Oi = robot.laser.findClosestTangentPoint(goal.base, robot.base);
 	        }
 
-	        dist = pose_xy::getLinearDistance(goal.base.p, Oi) + pose_xy::getLinearDistance(Oi, robot.base.p);
+	        dist = pose_xy::getLinearDistance(goal.base, Oi) + pose_xy::getLinearDistance(Oi, robot.base);
 	        
 	        //boundary following behavior!
 	        if(dist > last_dist)
 	    	{
-	    		dReached = pose_xy::getLinearDistance(goal.base.p, robot.base.p);
-	    		dFollowp = robot.laser.findClosestTangentPoint(goal.base.p, robot.base.p);
-	    		dFollow = pose_xy::getLinearDistance(dFollowp, goal.base.p);
+	    		dReached = pose_xy::getLinearDistance(goal.base, robot.base);
+	    		dFollowp = robot.laser.findClosestTangentPoint(goal.base, robot.base);
+	    		dFollow = pose_xy::getLinearDistance(dFollowp, goal.base);
 	    		while(dReached >= dFollow)
 	    		{
 	    			ros::spinOnce();
 	    			rate.sleep();
 
-	    			goalRobotV = Controller::getRobotGoalVector(dFollow, robot.base.p);
+	    			goalRobotV = Controller::getRobotGoalVector(dFollow, robot.base);
 	        		robot.move(goalRobotV.x, goalRobotV.y);
 	    		}
 	    	}
 	        else
 	        {
-	        	goalRobotV = Controller::getRobotGoalVector(goal.base.p, robot.base.p);
+	        	goalRobotV = Controller::getRobotGoalVector(goal.base, robot.base);
 	        	robot.move(goalRobotV.x, goalRobotV.y);
 	        }
 	        ros::spinOnce();
-    	    dist = pose_xy::getLinearDistance(goal.base.p, Oi) + pose_xy::getLinearDistance(Oi, robot.base.p);
+    	    dist = pose_xy::getLinearDistance(goal.base, Oi) + pose_xy::getLinearDistance(Oi, robot.base);
 	        last_dist = dist;
 	    }
     } 

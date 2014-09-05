@@ -133,7 +133,7 @@ floorplan
   name "roomba-stage" 
   size [20.000 15.000 0.800] 
   pose [0.000 0.000 0.000 0.000] 
-  bitmap "bitmaps/obfree.png" 
+  bitmap "bitmaps/map.png" 
 ) 
 
 roomba 
