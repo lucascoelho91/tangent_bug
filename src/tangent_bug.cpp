@@ -313,8 +313,9 @@ int main(int argc, char **argv)
     ros::Duration(0.5).sleep();
 
     while (ros::ok()) { 
+    	rate.sleep();
     	ros::spinOnce();
-		rate.sleep();
+		
 
     	if (pose_xy::getLinearDistance(goal.base, robot.base) < 0.1)
     	{
@@ -341,8 +342,9 @@ int main(int argc, char **argv)
 	    		dFollow = pose_xy::getLinearDistance(dFollowp, goal.base);
 	    		while(dReached >= dFollow)
 	    		{
-	    			ros::spinOnce();
 	    			rate.sleep();
+	    			ros::spinOnce();
+	    			
 
 	    			goalRobotV = Controller::getRobotGoalVector(dFollow, robot.base);
 	        		robot.move(goalRobotV.x, goalRobotV.y);
