@@ -105,16 +105,25 @@ include_directories(
 # )
 
 ## Declare a cpp executable
+ add_executable(bubble_bug src/bubble_bug.cpp)
+
+ target_link_libraries(bubble_bug
+   ${catkin_LIBRARIES}
+ )
  add_executable(tangent_bug src/tangent_bug.cpp)
 
+ target_link_libraries(tangent_bug
+   ${catkin_LIBRARIES}
+ )
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-add_dependencies(tangent_bug tangent_bug_generate_messages_cpp)
-
+#add_dependencies(bubble_bug tangent_bug_generate_messages_cpp)
+#add_dependencies(tangent_bug tangent_bug_generate_messages_cpp)
 ## Specify libraries to link a library or executable target against
  target_link_libraries(tangent_bug
    ${catkin_LIBRARIES}
  )
+
 
 #############
 ## Install ##

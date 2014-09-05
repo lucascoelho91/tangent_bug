@@ -21,9 +21,9 @@ public:
         double roll, pitch; 
         x = (-1)* msg->pose.pose.position.y; 
         y = msg->pose.pose.position.x; 
-        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \ 
-                                          msg->pose.pose.orientation.y, \ 
-                                          msg->pose.pose.orientation.z, \ 
+        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
+                                          msg->pose.pose.orientation.y, \
+                                          msg->pose.pose.orientation.z, \
                                           msg->pose.pose.orientation.w); 
         tf::Matrix3x3(q).getRPY(roll, pitch, heading); 
     } 
@@ -43,9 +43,9 @@ public:
         x = msg->pose.pose.position.x; 
         y = msg->pose.pose.position.y; 
 
-        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \ 
-                                          msg->pose.pose.orientation.y, \ 
-                                          msg->pose.pose.orientation.z, \ 
+        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
+                                          msg->pose.pose.orientation.y, \
+                                          msg->pose.pose.orientation.z, \
                                           msg->pose.pose.orientation.w); 
         tf::Matrix3x3(q).getRPY(roll, pitch, heading); 
     } 
@@ -59,22 +59,22 @@ public:
 
     StageBot(ros::NodeHandle& nh, int robotID): ID(robotID) 
     { 
-        commandPub = nh.advertise<geometry_msgs::Twist>("/robot_" + \ 
-                                                        boost::lexical_cast<std::string>(robotID) + \ 
+        commandPub = nh.advertise<geometry_msgs::Twist>("/robot_" + \
+                                                        boost::lexical_cast<std::string>(robotID) + \
                                                         "/cmd_vel", 1); 
-        laserSub = nh.subscribe("/robot_" +\ 
-                                boost::lexical_cast<std::string>(robotID) +\ 
-                                "/base_scan", 1, \ 
+        laserSub = nh.subscribe("/robot_" +\
+                                boost::lexical_cast<std::string>(robotID) +\
+                                "/base_scan", 1, \
                                 &StageBot::laserCallback, this); 
 
-        baseSub = nh.subscribe("/robot_" + \ 
-                               boost::lexical_cast<std::string>(robotID) + \ 
-                               "/base_pose_ground_truth", 1, \ 
+        baseSub = nh.subscribe("/robot_" + \
+                               boost::lexical_cast<std::string>(robotID) + \
+                               "/base_pose_ground_truth", 1, \
                                &Base::baseCallback, &base ); 
 
-        poseSub = nh.subscribe("/robot_" + \ 
-                               boost::lexical_cast<std::string>(robotID) + \ 
-                               "/odom", 1, \ 
+        poseSub = nh.subscribe("/robot_" + \
+                               boost::lexical_cast<std::string>(robotID) + \
+                               "/odom", 1, \
                                &Pose::poseCallback, &pose ); 
     } 
 
@@ -106,14 +106,14 @@ public:
 
     double getAngularDistance(StageBot& robot, StageBot& goal) 
     { 
-        return atan2(goal.pose.y - robot.pose.y, \ 
-                     goal.pose.x - robot.pose.x) \ 
+        return atan2(goal.pose.y - robot.pose.y, \
+                     goal.pose.x - robot.pose.x) \
                    -robot.pose.heading; 
     } 
 
     double getLinearDistance(StageBot& robot, StageBot& goal) 
     { 
-        return sqrt(pow(goal.pose.x - robot.pose.x, 2) \ 
+        return sqrt(pow(goal.pose.x - robot.pose.x, 2) \
                     + pow(goal.pose.y - robot.pose.y, 2)); 
     } 
 }; 

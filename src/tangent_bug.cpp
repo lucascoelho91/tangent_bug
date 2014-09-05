@@ -7,74 +7,193 @@
 #include <tf/LinearMath/Matrix3x3.h> 
 
 
+class pose_xy{
+	public:
+		double x;
+		double y;
+		double heading;
+
+
+		static double getAngularDistance(pose_xy& p1, pose_xy& p2) 
+	    { 
+	        return atan2(p2.y - p1.y, p2.x - p1.x)  -p1.heading; 
+	    } 
+
+	    static double getLinearDistance(pose_xy& p1, pose_xy& p2)  
+	    { 
+	        return sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2)); 
+	    }
+
+	    pose_xy(double xp = 0, double yp = 0, double hp = 0)
+	    {
+	    	x = xp;
+	    	y = yp;
+	    	heading = hp;
+	    }
+};
 
 class Base { 
 public: 
-    double x; 
-    double y; 
-    double heading;// in radians 
+    pose_xy p; 
 
-    Base() : x(0), y(0), heading(0) 
-    { 
-    } 
+    Base(){}
+
     void baseCallback(const nav_msgs::Odometry::ConstPtr& msg) { 
         double roll, pitch; 
-        x = (-1)* msg->pose.pose.position.y; 
-        y = msg->pose.pose.position.x; 
-        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \ 
-                                          msg->pose.pose.orientation.y, \ 
-                                          msg->pose.pose.orientation.z, \ 
+        p.x = (-1)* msg->pose.pose.position.y; 
+        p.y = msg->pose.pose.position.x; 
+        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
+                                          msg->pose.pose.orientation.y, \
+                                          msg->pose.pose.orientation.z, \
                                           msg->pose.pose.orientation.w); 
-        tf::Matrix3x3(q).getRPY(roll, pitch, heading); 
+        tf::Matrix3x3(q).getRPY(roll, pitch, p.heading); 
     } 
 }; 
 
 class Pose { 
 public: 
-    double x; 
-    double y; 
-    double heading;// in radians 
+    pose_xy p;
 
-    Pose() : x(0), y(0), heading(0) 
-    { 
-    } 
+    Pose() {} 
     void poseCallback(const nav_msgs::Odometry::ConstPtr& msg) { 
         double roll, pitch; 
-        x = msg->pose.pose.position.x; 
-        y = msg->pose.pose.position.y; 
+        p.x = msg->pose.pose.position.x; 
+        p.y = msg->pose.pose.position.y; 
 
-        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \ 
-                                          msg->pose.pose.orientation.y, \ 
-                                          msg->pose.pose.orientation.z, \ 
+        tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
+                                          msg->pose.pose.orientation.y, \
+                                          msg->pose.pose.orientation.z, \
                                           msg->pose.pose.orientation.w); 
-        tf::Matrix3x3(q).getRPY(roll, pitch, heading); 
+        tf::Matrix3x3(q).getRPY(roll, pitch, p.heading); 
     } 
 }; 
 
+
+class Laser{
+	sensor_msgs::LaserScan laser;
+public:
+	Laser() {}
+
+	void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg) 
+    { 
+      	laser = msg*;
+    } 
+
+    pose_xy getMinimumDistanceRobotToPoint(pose_xy robot_pose)
+    {
+    	for(int i = 0, float minimum = laser.range_max, int min_index = 0; i < laser.ranges.size(); i++)
+    	{
+    		if (laser.ranges[i] > laser.ranges.min && laser.ranges[i] < minimum){
+    			minimum = laser.ranges[i];
+    			min_index = i;
+    		}
+    	}
+    	pose_xy point;
+    	double ang_point =robot_pose.p.heading - (laser.angle_increment * min_index + laser.angle_min);
+
+    	point.x = robot_pose.p.x + minimum*cos(ang_point);
+    	point.y = robot_pose.p.y + minimum*sen(ang_point);
+    	point.heading = ang_point;
+
+    	return point;
+    }
+
+    pose_xy getPointMinimumDistanceGoal(pose_xy goal)
+    {
+    	float laserDist;
+    	double ang_point, dist;
+    	double minDist;
+    	pose_xy minPoint;
+    	for(int i = 0; i < laser.ranges.size(); i++)
+    	{
+    		if (laser.ranges[i] > laser.range_min){
+    			laserDist = laser.ranges[i];
+    			
+    			ang_point = goal.p.heading - (laser.angle_increment * i + laser.angle_min);
+
+		    	point.x = robot_pose.p.x + laserDist*cos(ang_point);
+		    	point.y = robot_pose.p.y + laserDist*sen(ang_point);
+		    	point.heading = ang_point;
+
+		    	dist = pose_xy::getLinearDistance(goal, point);
+		    	if(dist < minDist)
+		    		minPoint = point;
+    		}
+    	}
+    	return minPoint;
+    }
+
+    	// checks if there is an obstacle in front of the robot
+    	bool obstacle_in_path()
+    	{
+    		int midpoint = (laser.angle_max - laser.angle_min)/(laser.angle_increment*2);
+
+    		if(laser.ranges[midpoint] > laser.range_min && laser.ranges[midpoint] < laser.range_max){
+  				return true;
+  			}
+  			else{
+  				return false;
+  			}
+    	}
+
+    	pose_xy findClosestTangentPoint(pose_xy goal, pose_xy robot)
+    	{
+
+	    	float laserDist;
+	    	double ang_point, dist;
+	    	double minDist;
+	    	pose_xy minPoint;
+	    	bool onObstacle;
+
+	    	for(int i = 0; i < laser.ranges.size(); i++)
+	    	{
+	    		if (laser.ranges[i] > laser.range_min){
+
+	    			if( (laser.ranges[i] < laser.range_max && onObstacle == false) || (laser.ranges[i] >= laser.range_max && onObstacle == true))
+	    			{
+		    			laserDist = laser.ranges[i];
+		    			
+		    			ang_point = goal.p.heading - (laser.angle_increment * i + laser.angle_min);
+
+				    	point.x = robot_pose.p.x + laserDist*cos(ang_point);
+				    	point.y = robot_pose.p.y + laserDist*sen(ang_point);
+				    	point.heading = ang_point;
+
+				    	dist = pose_xy::getLinearDistance(goal, point) +  pose_xy::getLinearDistance(point, robot);
+				    	if(dist < minDist)
+				    		minPoint = point;
+				    }
+	    		}
+	    	}
+	    	return minPoint;
+	    }
+
+};
 
 class StageBot { 
 public: 
     Base base; 
     Pose pose; 
+    Laser laser;
 
     StageBot(ros::NodeHandle& nh, int robotID): ID(robotID) 
     { 
-        commandPub = nh.advertise<geometry_msgs::Twist>("/robot_" + \ 
-                                                        boost::lexical_cast<std::string>(robotID) + \ 
+        commandPub = nh.advertise<geometry_msgs::Twist>("/robot_" + \
+                                                        boost::lexical_cast<std::string>(robotID) + \
                                                         "/cmd_vel", 1); 
-        laserSub = nh.subscribe("/robot_" +\ 
-                                boost::lexical_cast<std::string>(robotID) +\ 
-                                "/base_scan", 1, \ 
-                                &StageBot::laserCallback, this); 
+        laserSub = nh.subscribe("/robot_" +\
+                                boost::lexical_cast<std::string>(robotID) +\
+                                "/base_scan", 1, \
+                                &Laser::laserCallback, &laser); 
 
-        baseSub = nh.subscribe("/robot_" + \ 
-                               boost::lexical_cast<std::string>(robotID) + \ 
-                               "/base_pose_ground_truth", 1, \ 
+        baseSub = nh.subscribe("/robot_" + \
+                               boost::lexical_cast<std::string>(robotID) + \
+                               "/base_pose_ground_truth", 1, \
                                &Base::baseCallback, &base ); 
 
-        poseSub = nh.subscribe("/robot_" + \ 
-                               boost::lexical_cast<std::string>(robotID) + \ 
-                               "/odom", 1, \ 
+        poseSub = nh.subscribe("/robot_" + \
+                               boost::lexical_cast<std::string>(robotID) + \
+                               "/odom", 1, \
                                &Pose::poseCallback, &pose ); 
     } 
 
@@ -87,10 +206,7 @@ public:
         commandPub.publish(msg); 
     } 
 
-    void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg) 
-    { 
-        //TODO 
-    } 
+    
 
 protected: 
     ros::Publisher commandPub; 
@@ -102,20 +218,33 @@ protected:
 
 class Controller { 
 public: 
+
+	pose_xy Oi;
+	bool last_dir;
+	double d_reach;
+	double d_followed;
+
+
     Controller(){} 
 
     double getAngularDistance(StageBot& robot, StageBot& goal) 
     { 
-        return atan2(goal.pose.y - robot.pose.y, \ 
-                     goal.pose.x - robot.pose.x) \ 
-                   -robot.pose.heading; 
+        return atan2(goal.pose.p.y - robot.pose.p.y, \
+                     goal.pose.p.x - robot.pose.p.x) \
+                   -robot.pose.p.heading; 
     } 
 
     double getLinearDistance(StageBot& robot, StageBot& goal) 
     { 
-        return sqrt(pow(goal.pose.x - robot.pose.x, 2) \ 
-                    + pow(goal.pose.y - robot.pose.y, 2)); 
-    } 
+        return sqrt(pow(goal.pose.p.x - robot.pose.p.x, 2) \
+                    + pow(goal.pose.p.y - robot.pose.p.y, 2)); 
+    }
+
+    double getLinearDistance(pose_xy p1, pose_xy p2) 
+    { 
+        return pose_xy::getLinearDistance(p1, p2);
+    }
+
 }; 
 
 int main(int argc, char **argv) 
@@ -144,10 +273,8 @@ int main(int argc, char **argv)
             robot.move(distance * 0.8 ,0.0); 
         } 
 
-
         ros::spinOnce(); 
         rate.sleep(); 
     } 
     return EXIT_SUCCESS; 
 }
-
