@@ -40,9 +40,9 @@ public:
 
     void baseCallback(const nav_msgs::Odometry::ConstPtr& msg) { 
         double roll, pitch; 
-        x = (-1)* msg->pose.pose.position.y; 
-        y = msg->pose.pose.position.x; 
-        printf("Getting base!!!! %f %f\n", x, y);
+        x = msg->pose.pose.position.x; 
+        y = msg->pose.pose.position.y; 
+        //printf("Getting base!!!! %f %f\n", x, y);
         tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
                                           msg->pose.pose.orientation.y, \
                                           msg->pose.pose.orientation.z, \
@@ -59,7 +59,7 @@ public:
         double roll, pitch; 
         x = msg->pose.pose.position.x; 
         y = msg->pose.pose.position.y;
-        printf("Getting pose!!!! %f %f\n", x, y); 
+        //printf("Getting pose!!!! %f %f\n", x, y); 
 
         tf::Quaternion q = tf::Quaternion(msg->pose.pose.orientation.x, \
                                           msg->pose.pose.orientation.y, \
@@ -80,26 +80,54 @@ public:
       	laser = *msg;
     } 
 
-    pose_xy getMinimumDistanceRobotToPoint(pose_xy robot_pose)
+    pose_xy laserIndexToPose(int i, double dist, double heading, pose_xy robot_pose)
     {
-    	float minimum = laser.range_max;
-    	int min_index = 0;
-    	for(int i = 0; i < laser.ranges.size(); i++)
-    	{
-    		if (laser.ranges[i] > laser.range_min && laser.ranges[i] < minimum){
-    			minimum = laser.ranges[i];
-    			min_index = i;
-    		}
-    	}
-    	pose_xy point;
-    	double ang_point =robot_pose.heading - (laser.angle_increment * min_index + laser.angle_min);
+        double ang_point = heading - (laser.angle_increment * i + laser.angle_min);
+        pose_xy point;
+        point.x = robot_pose.x + dist*cos(ang_point);
+        point.y = robot_pose.y + dist*sin(ang_point);
+        point.heading = ang_point;
 
-    	point.x = robot_pose.x + minimum*cos(ang_point);
-    	point.y = robot_pose.y + minimum*sin(ang_point);
-    	point.heading = ang_point;
-
-    	return point;
+        return point;
     }
+
+    pose_xy getMinimumDistanceRobotToPoint (pose_xy dummy_pose, pose_xy robot_pose)
+    {
+        float minimum = laser.range_max;
+        int min_index = 0;
+        pose_xy point;
+
+        //printf("range: %1.2f \t laser.range.size: %lu\n", -1.23,laser.ranges.size());
+        for(int i = 0; i < laser.ranges.size(); i++)
+        {
+            //ROS_INFO("Dentro do for");
+            if (laser.ranges[i] > laser.range_min && laser.ranges[i] < minimum)
+            {
+                minimum = laser.ranges[i];
+                min_index = i;
+                // printf("range: %1.2f \t min_index: %2d\n", minimum,min_index);
+                //ROS_INFO("Dentro do IF");
+            }
+        }
+
+        double ang_point = robot_pose.heading - (laser.angle_increment * min_index + laser.angle_min);
+
+        // point.x = robot_pose.x + minimum*cos(ang_point);
+        // point.y = robot_pose.y + minimum*sin(ang_point);
+        // ROS_INFO("Laser method");
+        point.x = minimum*cos(ang_point);
+        point.y = minimum*sin(ang_point);
+        point.heading = ang_point;
+            
+
+        //point = laserIndexToPose(min_index, minimum, robot_pose.heading, robot_pose);
+        point.x += robot_pose.x;
+        point.y += robot_pose.y;
+
+        //printf("closest point:%f %f - distance: %f\n robot_x: %f, robot_y: %f\n\n", point.x, point.y, minimum, robot_pose.x, robot_pose.y);
+        return point;
+    }
+
 
     pose_xy getPointMinimumDistanceGoal(pose_xy goal, pose_xy robot_pose)
     {
@@ -160,39 +188,84 @@ public:
     		dReach.heading = phi;
     		return dReach;
     	}
+
     	pose_xy findClosestTangentPoint(pose_xy goal, pose_xy robot_pose)
     	{
-
 	    	float laserDist;
-	    	double ang_point, dist;
-	    	double minDist;
+	    	double ang_point, dist = HUGE_VAL;
+	    	double minDist = HUGE_VAL;
 	    	pose_xy minPoint, point;
-	    	bool onObstacle;
+	    	bool onObstacle = false;
+
+            if(laser.ranges[0] > laser.range_min && laser.ranges[0] < laser.range_max)
+            {
+                laserDist = laser.ranges[0];
+
+                point = laserIndexToPose(0, laserDist, robot_pose.heading, robot_pose);
+
+                dist = pose_xy::getLinearDistance(goal, point) +  pose_xy::getLinearDistance(point, robot_pose);
+                //printf("dist %f\n", dist);
+                if(dist < minDist)
+                {
+                    minPoint = point;
+                    minDist = dist;
+                   // printf("changed point");
+                }    
+
+                onObstacle = true;
+            }    
 
 	    	for(int i = 0; i < laser.ranges.size(); i++)
 	    	{
-	    		if (laser.ranges[i] > laser.range_min){
-
-	    			if( (laser.ranges[i] < laser.range_max && onObstacle == false) || (laser.ranges[i] >= laser.range_max && onObstacle == true))
+	    		if (laser.ranges[i] > laser.range_min && laser.ranges[i] < laser.range_max)
+                {
+	    			if(onObstacle == false)
 	    			{
 		    			laserDist = laser.ranges[i];
 		    			
-		    			ang_point = goal.heading - (laser.angle_increment * i + laser.angle_min);
-
-				    	point.x = robot_pose.x + laserDist*cos(ang_point);
-				    	point.y = robot_pose.y + laserDist*sin(ang_point);
-				    	point.heading = ang_point;
+		    			point = laserIndexToPose(i, laserDist, robot_pose.heading, robot_pose);
 
 				    	dist = pose_xy::getLinearDistance(goal, point) +  pose_xy::getLinearDistance(point, robot_pose);
 				    	if(dist < minDist)
-				    		minPoint = point;
+                        {
+                            minPoint = point;
+                            //printf("px: %f  py: %f\n", point.x, point.y);
+                        }
+				    		
+
+                        onObstacle = true;
 				    }
+                else if (onObstacle == true)
+                {
+                    laserDist = laser.ranges[i];
+                        
+                    point = laserIndexToPose(i, laserDist, robot_pose.heading, robot_pose);
+
+                    dist = pose_xy::getLinearDistance(goal, point) +  pose_xy::getLinearDistance(point, robot_pose);
+                    if(dist < minDist)
+                    {
+                        minPoint = point;
+                        //printf("px: %f  py: %f\n", point.x, point.y);
+                    }
+                        
+
+                    onObstacle = false;
+                }
 	    		}
+                else
+                {
+                    onObstacle = false;
+                }
 	    	}
+
+            if (minDist == HUGE_VAL)
+                minPoint = goal;
+            //printf("%f %f \n", minPoint.x, minPoint.y);
 	    	return minPoint;
 	    }
 
 };
+
 
 class StageBot { 
 public: 
@@ -233,9 +306,21 @@ public:
 
         double v, w;
 
-        v = kv*( cos(base.heading)*xvel + sin(base.heading)*yvel );
-        w = kw*( -sin(base.heading)*yvel/d + cos(base.heading)*yvel/d );
-                
+        /*v = kv*( cos(pose.heading)*xvel + sin(pose.heading)*yvel );
+        w = kw*( -sin(pose.heading)*yvel/d + cos(pose.heading)*yvel/d );
+        */
+        double angVelz = atan2(yvel, xvel) - pose.heading; 
+        double distance = sqrt(xvel*xvel + yvel*yvel); 
+        if (std::abs(angVelz) > 1e-4){ 
+            v = 0;
+            w = 3* angVelz; 
+        } 
+        else { 
+            v = distance * 0.8;
+            w = 0; 
+        } 
+
+        printf("\ndx %f dy %f --- v %f w %f\n", xvel, yvel, v, w);
 
         msg.linear.x = v; 
         msg.angular.z = w; 
@@ -252,58 +337,59 @@ protected:
     int ID; 
 }; 
 
+ 
 class Controller { 
 public: 
 
-	pose_xy Oi;
-	bool last_dir;
-	double last_dist;
+    pose_xy Oi;
+    bool last_dir;
+    double last_dist;
 
     Controller(){
-    	last_dist = 0;
+        last_dist = 0;
     } 
 
-    double getAngularDistance(StageBot& robot, StageBot& goal) 
+    static double getAngularDistance(StageBot& robot, StageBot& goal) 
     { 
         return atan2(goal.pose.y - robot.pose.y, \
                      goal.pose.x - robot.pose.x) \
                    -robot.pose.heading; 
     } 
 
-    double getLinearDistance(StageBot& robot, StageBot& goal) 
+    static double getLinearDistance(StageBot& robot, StageBot& goal) 
     { 
         return sqrt(pow(goal.pose.x - robot.pose.x, 2) \
                     + pow(goal.pose.y - robot.pose.y, 2)); 
     }
 
-    double getLinearDistance(pose_xy p1, pose_xy p2) 
+    static double getLinearDistance(pose_xy p1, pose_xy p2) 
     { 
         return pose_xy::getLinearDistance(p1, p2);
     }
 
     static pose_xy getRobotGoalVector(pose_xy p1, pose_xy p2)
     {
-    	pose_xy s;
-    	s.x = p1.x - p2.x;
-    	s.y = p1.y - p2.y;
-    	s.heading  = atan2(s.y, s.x);
-    	return s;
+        pose_xy s;
+        s.x = p1.x - p2.x;
+        s.y = p1.y - p2.y;
+        s.heading  = atan2(s.y, s.x);
+        return s;
     }
 
-}; 
+};
 
 int main(int argc, char **argv) 
 { 
     ros::init(argc, argv, "controller"); 
     ros::NodeHandle n("controller"); 
-    StageBot robot(n, 0, 0.1, 1000, 0.05); 
+    StageBot robot(n, 0, 0.1, 0.2, 1); 
     StageBot goal(n, 1); 
     Controller controller; 
 
     double K = 1; 
     pose_xy Oi, goalRobotV;
     double dist;
-    double last_dist=0;
+    double last_dist=HUGE_VAL;
 
     double dReached, dFollow;
     pose_xy dFollowp;
@@ -316,6 +402,8 @@ int main(int argc, char **argv)
     	rate.sleep();
     	ros::spinOnce();
 		
+        //Oi = robot.laser.getMinimumDistanceRobotToPoint(goal.base, robot.base);
+        //Oi = robot.laser.findClosestTangentPoint(goal.base, robot.base);
 
     	if (pose_xy::getLinearDistance(goal.base, robot.base) < 0.1)
     	{
@@ -329,8 +417,16 @@ int main(int argc, char **argv)
 		{
 	        if(robot.laser.obstacle_in_path(goal.base, robot.base))
 	        {
+                printf("there is an obstacle on the path\n");
 	        	Oi = robot.laser.findClosestTangentPoint(goal.base, robot.base);
 	        }
+	        else
+	      	{
+                printf("no obstacle!\n");
+	      		Oi = goal.base;
+                goalRobotV = Controller::getRobotGoalVector(Oi, robot.base);
+                robot.move(goalRobotV.x, goalRobotV.y);
+	      	}
 
 	        dist = pose_xy::getLinearDistance(goal.base, Oi) + pose_xy::getLinearDistance(Oi, robot.base);
 	        
@@ -352,9 +448,12 @@ int main(int argc, char **argv)
 	    	}
 	        else
 	        {
-	        	goalRobotV = Controller::getRobotGoalVector(goal.base, robot.base);
+	        	goalRobotV = Controller::getRobotGoalVector(Oi, robot.base);
 	        	robot.move(goalRobotV.x, goalRobotV.y);
 	        }
+            
+
+
 	        ros::spinOnce();
     	    dist = pose_xy::getLinearDistance(goal.base, Oi) + pose_xy::getLinearDistance(Oi, robot.base);
 	        last_dist = dist;
